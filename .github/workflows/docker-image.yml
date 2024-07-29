@@ -1,0 +1,68 @@
+name: Docker Image CI
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+env:
+  PLATFORMS: linux/arm64
+  SOURCE_REPOSITORY: tldraw/tldraw
+  DOCKERHUB_REPOSITORY: helllord/tldraw
+
+jobs:
+  get-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.get-tag.outputs.tag }}
+    steps:
+      - name: Fetch get_tag.py
+        uses: actions/checkout@v4
+        with:
+          repository: hellbot77/get-tag
+          sparse-checkout: get_tag.py
+          sparse-checkout-cone-mode: false
+      - name: Get Docker image tag
+        id: get-tag
+        run: >
+          python3 get_tag.py ${{ github.event_name != 'workflow_dispatch' && env.DOCKERHUB_REPOSITORY || '""' }}
+          --gh-tag ${{ env.SOURCE_REPOSITORY }} >> $GITHUB_OUTPUT
+
+  build-push:
+    needs: get-tag
+    if: ${{ needs.get-tag.outputs.tag }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set Docker Hub username
+        id: dockerhub-username
+        run: echo "username=${DOCKERHUB_REPOSITORY%%/*}" >> $GITHUB_OUTPUT
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: ${{ env.PLATFORMS }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ steps.dockerhub-username.outputs.username }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          platforms: ${{ env.PLATFORMS }}
+          push: true
+          build-args: TAG=${{ needs.get-tag.outputs.tag }}
+          tags: |
+            ${{ env.DOCKERHUB_REPOSITORY }}:${{ needs.get-tag.outputs.tag }}
+            ${{ env.DOCKERHUB_REPOSITORY }}:latest
+
+  cancel-action:
+    needs: get-tag
+    if: ${{ !needs.get-tag.outputs.tag }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel action
+        uses: andymckay/cancel-action@0.3
+      - name: Wait for cancel
+        run: sleep infinity
