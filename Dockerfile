@@ -18,4 +18,4 @@ RUN corepack enable && \
 
 FROM lipanski/docker-static-website
 
-COPY --from=build /tldraw/apps/dotcom/dist .
+COPY --from=build /tldraw/apps/dotcom/client/dist .
