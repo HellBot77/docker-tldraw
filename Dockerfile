@@ -6,7 +6,7 @@ RUN git clone https://github.com/tldraw/tldraw.git && \
     ([[ "$TAG" = "latest" ]] || git checkout ${TAG}) && \
     rm -rf .git
 
-FROM node:alpine AS build
+FROM node:20-alpine AS build
 
 WORKDIR /tldraw
 COPY --from=base /git/tldraw .
